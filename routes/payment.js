@@ -6,7 +6,7 @@ import crypto from "crypto";
 
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 
 // ================= COMMON =================
 const markOrderPaid = async (order, paymentResult = {}) => {
