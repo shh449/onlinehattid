@@ -29,61 +29,8 @@ const markOrderPaid = async (order, paymentResult = {}) => {
     }
 };
 
-// ================= STRIPE =================
-router.post("/stripe/create-payment-intent", async (req, res) => {
-    try {
-        const { orderId } = req.body;
 
-        const order = await Order.findById(orderId);
-        if (!order) return res.status(404).json({ message: "Order not found" });
 
-        if (order.isPaid) {
-            return res.status(400).json({ message: "Already paid" });
-        }
-
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(order.totalPrice * 100),
-            currency: "usd",
-            metadata: { orderId: order._id.toString() },
-        });
-
-        res.json({ clientSecret: paymentIntent.client_secret });
-
-    } catch (err) {
-        console.error("Stripe Error:", err);
-        res.status(500).json({ message: "Stripe failed" });
-    }
-});
-
-// ================= STRIPE WEBHOOK =================
-router.post(
-    "/stripe/webhook",
-    express.raw({ type: "application/json" }),
-    async (req, res) => {
-        try {
-            const event = stripe.webhooks.constructEvent(
-                req.body,
-                req.headers["stripe-signature"],
-                process.env.STRIPE_WEBHOOK_SECRET
-            );
-
-            if (event.type === "payment_intent.succeeded") {
-                const orderId = event.data.object.metadata.orderId;
-
-                const order = await Order.findById(orderId);
-                if (order) {
-                    await markOrderPaid(order, event.data.object);
-                }
-            }
-
-            res.json({ received: true });
-
-        } catch (err) {
-            console.error("Webhook Error:", err.message);
-            res.status(400).send("Webhook error");
-        }
-    }
-);
 
 // ================= JAZZCASH =================
 router.post("/jazzcash/initiate", async (req, res) => {
