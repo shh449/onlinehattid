@@ -49,8 +49,7 @@ const ProductSchema = new Schema({
         type: [String],
         default: []
     },
-    imageSrc: String,
-    imageAlt: String,
+
 
     availableColors: {
         type: [String],
