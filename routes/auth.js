@@ -13,29 +13,72 @@ dotenv.config();
 const router = express.Router();
 const jwtkey = process.env.JWT_SECRET;
 
+// ============================ HELPER: VALIDATION HANDLER ============================
+const handleValidation = (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            error: errors.array()
+        });
+    }
+};
+
+// ============================ HELPER: GENERATE TOKEN ============================
+const generateToken = (user) => {
+    return jwt.sign(
+        {
+            user: {
+                id: user.id,
+                role: user.role
+            }
+        },
+        jwtkey,
+        { expiresIn: "7d" }
+    );
+};
 
 // ============================ USER SIGNUP ROUTE ============================
 router.post(
     "/signup",
     [
-        body("name").isLength({ min: 3 }).withMessage("Name must be at least 3 characters long"),
-        body("email").isEmail().withMessage("Enter a valid email").normalizeEmail(),
-        body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters long"),
+        body("name")
+            .trim()
+            .isLength({ min: 3 })
+            .withMessage("Name must be at least 3 characters long"),
+
+        body("email")
+            .isEmail()
+            .withMessage("Enter a valid email")
+            .normalizeEmail(),
+
+        body("password")
+            .isLength({ min: 6 })
+            .withMessage("Password must be at least 6 characters long"),
     ],
     async (req, res) => {
 
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ success: false, error: errors.array() });
-        }
+        const validationError = handleValidation(req, res);
+        if (validationError) return validationError;
 
         try {
 
             const { name, email, password } = req.body;
 
+            if (!jwtkey) {
+                return res.status(500).json({
+                    success: false,
+                    message: "JWT secret is missing"
+                });
+            }
+
             let existingUser = await User.findOne({ email });
+
             if (existingUser) {
-                return res.status(400).json({ success: false, message: "User already exists" });
+                return res.status(400).json({
+                    success: false,
+                    message: "User already exists"
+                });
             }
 
             const salt = await bcrypt.genSalt(10);
@@ -47,14 +90,7 @@ router.post(
                 password: hashedPassword,
             });
 
-            const payload = {
-                user: {
-                    id: user.id,
-                    role: user.role
-                }
-            };
-
-            const token = jwt.sign(payload, jwtkey, { expiresIn: "7d" });
+            const token = generateToken(user);
 
             res.status(201).json({
                 success: true,
@@ -67,49 +103,63 @@ router.post(
             });
 
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: "Server error" });
+            console.error("Signup Error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Server error during signup"
+            });
         }
     }
 );
-
 
 // ============================ USER LOGIN ROUTE ============================
 router.post(
     "/login",
     [
-        body("email").isEmail().normalizeEmail(),
-        body("password").exists(),
+        body("email")
+            .isEmail()
+            .withMessage("Enter a valid email")
+            .normalizeEmail(),
+
+        body("password")
+            .exists()
+            .withMessage("Password is required"),
     ],
     async (req, res) => {
 
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ success: false, errors: errors.array() });
-        }
+        const validationError = handleValidation(req, res);
+        if (validationError) return validationError;
 
         try {
 
             const { email, password } = req.body;
 
+            if (!jwtkey) {
+                return res.status(500).json({
+                    success: false,
+                    message: "JWT secret is missing"
+                });
+            }
+
             const user = await User.findOne({ email });
+
             if (!user) {
-                return res.status(401).json({ success: false, message: "Invalid credentials" });
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid credentials"
+                });
             }
 
             const passwordCompare = await bcrypt.compare(password, user.password);
+
             if (!passwordCompare) {
-                return res.status(401).json({ success: false, message: "Invalid credentials" });
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid credentials"
+                });
             }
 
-            const payload = {
-                user: {
-                    id: user.id,
-                    role: user.role
-                }
-            };
-
-            const token = jwt.sign(payload, jwtkey, { expiresIn: "7d" });
+            const token = generateToken(user);
 
             res.status(200).json({
                 success: true,
@@ -122,25 +172,28 @@ router.post(
             });
 
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: "Server error" });
+            console.error("Login Error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Server error during login"
+            });
         }
     }
 );
-
 
 // ============================ FORGOT PASSWORD ROUTE ============================
 router.post(
     "/forgotpassword",
     [
-        body("email").isEmail().withMessage("Enter a valid email").normalizeEmail(),
+        body("email")
+            .isEmail()
+            .withMessage("Enter a valid email")
+            .normalizeEmail(),
     ],
     async (req, res) => {
 
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ success: false, errors: errors.array() });
-        }
+        const validationError = handleValidation(req, res);
+        if (validationError) return validationError;
 
         try {
 
@@ -149,21 +202,24 @@ router.post(
             const user = await User.findOne({ email });
 
             if (!user) {
-                return res.status(404).json({ success: false, message: "User not found" });
+                return res.status(404).json({
+                    success: false,
+                    message: "User not found"
+                });
             }
 
-            // Generate reset token
             const resetToken = crypto.randomBytes(32).toString("hex");
 
-            // Hash token and save in DB
-            const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+            const hashedToken = crypto
+                .createHash("sha256")
+                .update(resetToken)
+                .digest("hex");
 
             user.resetPasswordToken = hashedToken;
-            user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
+            user.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
 
             await user.save();
 
-            // Email setup
             const transporter = nodemailer.createTransport({
                 service: "gmail",
                 auth: {
@@ -175,11 +231,13 @@ router.post(
             const resetUrl = `https://onlinehatti.vercel.app/resetpassword/${resetToken}`;
 
             const message = `
-                You requested a password reset.
-                Click the link below to reset password:
-                ${resetUrl}
-                This link will expire in 10 minutes.
-            `;
+You requested a password reset.
+
+Click the link below:
+${resetUrl}
+
+This link will expire in 10 minutes.
+`;
 
             await transporter.sendMail({
                 to: user.email,
@@ -193,24 +251,34 @@ router.post(
             });
 
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: "Email could not be sent" });
+            console.error("Forgot Password Error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Email could not be sent"
+            });
         }
     }
 );
-
 
 // ============================ RESET PASSWORD ROUTE ============================
 router.post(
     "/resetpassword/:token",
     [
-        body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
+        body("password")
+            .isLength({ min: 6 })
+            .withMessage("Password must be at least 6 characters"),
     ],
     async (req, res) => {
 
+        const validationError = handleValidation(req, res);
+        if (validationError) return validationError;
+
         try {
 
-            const resetToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+            const resetToken = crypto
+                .createHash("sha256")
+                .update(req.params.token)
+                .digest("hex");
 
             const user = await User.findOne({
                 resetPasswordToken: resetToken,
@@ -218,7 +286,10 @@ router.post(
             });
 
             if (!user) {
-                return res.status(400).json({ success: false, message: "Invalid or expired token" });
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid or expired token"
+                });
             }
 
             const salt = await bcrypt.genSalt(10);
@@ -235,20 +306,39 @@ router.post(
             });
 
         } catch (error) {
-            console.error(error);
-            res.status(500).json({ success: false, message: "Server error" });
+            console.error("Reset Password Error:", error);
+            res.status(500).json({
+                success: false,
+                message: "Server error during reset"
+            });
         }
     }
 );
 
-
 // ============================ FETCH USER ROUTE ============================
 router.get("/fetchuser", fetchuser, async (req, res) => {
     try {
+
         const user = await User.findById(req.user.id).select("-password");
-        res.json({ success: true, user });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        res.json({
+            success: true,
+            user
+        });
+
     } catch (error) {
-        res.status(500).json({ success: false });
+        console.error("Fetch User Error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Server error while fetching user"
+        });
     }
 });
 
