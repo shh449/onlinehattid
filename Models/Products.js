@@ -79,19 +79,11 @@ const ProductSchema = new Schema({
                 type: Number,
                 default: 0,
             },
-            // Optional size-specific delivery charge
-            deliveryCharge: {
-                type: Number,
-                default: 5, // default delivery charge per size
-            }
+
         }
     ],
 
-    // ✅ NEW: Default delivery charge for product
-    deliveryCharge: {
-        type: Number,
-        default: 5, // flat delivery charge if size-specific not used
-    },
+
 
     reviews: [
         {
