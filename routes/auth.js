@@ -26,7 +26,7 @@ router.post(
 
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
-            return res.status(400).json({ success: false, errors: errors.array() });
+            return res.status(400).json({ success: false, error: errors.array() });
         }
 
         try {
@@ -172,7 +172,7 @@ router.post(
                 },
             });
 
-            const resetUrl = `http://localhost:5173/resetpassword/${resetToken}`;
+            const resetUrl = `https://onlinehatti.vercel.app/resetpassword/${resetToken}`;
 
             const message = `
                 You requested a password reset.
