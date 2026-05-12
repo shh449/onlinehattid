@@ -23,7 +23,10 @@ const ProductSchema = new Schema({
         type: String,
         required: true,
     },
-
+    subcategory: {
+        type: String,
+        default: ""
+    },
     // Default price (used if no size selected)
     price: {
         type: Number,
