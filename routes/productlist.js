@@ -75,41 +75,47 @@ router.post("/addproducts", fetchuser, admin, [
 // Get all products (WITH PAGINATION + INFINITE SCROLL SUPPORT)
 router.get("/getallproducts", async (req, res) => {
     try {
-        // ✅ GET QUERY PARAMS
+
         const page = parseInt(req.query.page) || 1;
+
         const limit = parseInt(req.query.limit) || 12;
 
-        // ✅ CALCULATE SKIP
         const skip = (page - 1) * limit;
 
-        // getting products
         const products = await Products.find()
+            .sort({ createdAt: -1 }) // newest first
+            .skip(skip)
+            .limit(limit)
             .select(
-                "name price discountedPrice images countInStock category subcategory tags "
+                "name price discountedPrice images countInStock category subcategory tags"
             )
-            .lean()
+            .lean();
 
-        // ✅ TOTAL COUNT (IMPORTANT)
-        const totalProducts = await Products.countDocuments();
+        const totalProducts =
+            await Products.countDocuments();
 
-        // ✅ CHECK IF MORE DATA EXISTS
-        const hasMore = skip + products.length < totalProducts;
+        const hasMore =
+            skip + products.length < totalProducts;
 
-        // ✅ RESPONSE FORMAT (IMPORTANT FOR FRONTEND)
         res.json({
             products,
             currentPage: page,
-            totalPages: Math.ceil(totalProducts / limit),
+            totalPages: Math.ceil(
+                totalProducts / limit
+            ),
             totalProducts,
-            hasMore
+            hasMore,
         });
 
     } catch (error) {
+
         console.error(error);
-        res.status(500).json({ message: "Internal error" });
+
+        res.status(500).json({
+            message: "Internal error",
+        });
     }
 });
-
 // Get one product by ID
 router.get("/fetchoneproduct/:id", async (req, res) => {
     try {
