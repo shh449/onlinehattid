@@ -82,11 +82,12 @@ router.get("/getallproducts", async (req, res) => {
         // ✅ CALCULATE SKIP
         const skip = (page - 1) * limit;
 
-        // ✅ FETCH PRODUCTS WITH PAGINATION
+        // getting products
         const products = await Products.find()
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
+            .select(
+                "name price discountedPrice images countInStock category subcategory tags "
+            )
+            .lean()
 
         // ✅ TOTAL COUNT (IMPORTANT)
         const totalProducts = await Products.countDocuments();
